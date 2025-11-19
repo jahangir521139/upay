@@ -1,6 +1,6 @@
 ---
 - name: Collect KVM VM info and generate CSV
-  hosts: kvm_hosts
+  hosts: all
   gather_facts: false
   vars:
     csv_report: "Name,State,CPU,Memory(MB),Disk,IP\n"
