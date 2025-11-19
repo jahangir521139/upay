@@ -1,6 +1,6 @@
 ---
 - name: Collect KVM VM information
-  hosts: kvm_hosts       # inventory-hosts.ini তে group বানাবেন
+  hosts: all
   become: true
   gather_facts: false
 
