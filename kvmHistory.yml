@@ -1,44 +1,55 @@
 ---
-- name: Collect KVM VM info and generate CSV
-  hosts: all
+- name: Collect KVM VM information
+  hosts: kvm_hosts       # inventory-hosts.ini তে group বানাবেন
+  become: true
   gather_facts: false
-  vars:
-    csv_report: "Name,State,CPU,Memory(MB),Disk,IP\n"
 
   tasks:
-    - name: Get list of VMs
-      command: virsh list --all --name
+    - name: Get list of all VMs
+      shell: virsh list --all --name
       register: vm_list
 
-    - name: Collect VM info for each VM
-      shell: virsh dumpxml {{ item }}
-      register: vm_xml
+    - name: Collect VM details
+      shell: |
+        vm="{{ item }}"
+        vcpu=$(virsh dominfo "$vm" | grep 'CPU(s)' | awk '{print $2}')
+        ram=$(virsh dominfo "$vm" | grep 'Max memory' | awk '{print $3}')
+        storage=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}')
+        ip=$(virsh domifaddr "$vm" | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
+
+        echo "$vm,$vcpu,$ram,$storage,$ip"
+      register: vm_details
       loop: "{{ vm_list.stdout_lines }}"
-      changed_when: false
+      when: item != ""
 
-    - name: Add data to CSV
+    - name: Build VM info lines
       set_fact:
-        csv_report: >-
-          {{ csv_report }}
-          {{ item.item }},
-          {{ (item.stdout | from_xml).domain.status }},
-          {{ (item.stdout | from_xml).domain.vcpu['#text'] }},
-          {{ (( (item.stdout | from_xml).domain.memory['#text']) | int) / 1024 }},
-          {{ ((item.stdout | from_xml).domain.devices.disk[0].target.dev) if (item.stdout | from_xml).domain.devices.disk is defined else 'N/A' }},
-          N/A
-          \n
-      loop: "{{ vm_xml.results }}"
+        vm_info_lines: "{{ vm_details.results | map(attribute='stdout') | list }}"
 
-    - name: Save CSV to file
-      copy:
-        content: "{{ csv_report }}"
-        dest: "./kvm_vm_report.csv"
-
-- name: Send VM CSV report via email
+- name: Create CSV on controller
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Email CSV report
+    - name: Build CSV content
+      set_fact:
+        csv_report: |
+          VM Name,vCPU,RAM(MB),Storage Path,IP Address
+          {% for line in hostvars[item].vm_info_lines %}
+          {{ line }}
+          {% endfor %}
+      vars:
+        item: "{{ groups['kvm_hosts'][0] }}"
+
+    - name: Save CSV file
+      copy:
+        dest: ./kvm_vm_report.csv
+        content: "{{ csv_report }}"
+
+- name: Send VM Report via Email
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Email CSV file
       community.general.mail:
         host: 172.23.18.26
         port: 465
@@ -46,6 +57,6 @@
         password: Upay@321
         to: m.jahangir.alam@ucb.com.bd
         subject: "KVM VM Info Report"
-        body: "Attached is the full VM information report for all KVM hosts."
+        body: "Attached is the KVM VM information report."
         attach:
           - "./kvm_vm_report.csv"
