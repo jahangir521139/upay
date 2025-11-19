@@ -21,20 +21,21 @@
       loop: "{{ vm_list.stdout_lines }}"
       register: vm_details
 
-    - name: Build VM info lines (only for valid hosts)
+    - name: Build VM info lines
       set_fact:
         vm_info_lines: "{{ vm_details.results | map(attribute='stdout') | list }}"
 
 - name: Create CSV on controller
   hosts: localhost
   gather_facts: false
-  become: false 
+  become: false
+
   tasks:
-    - name: Build CSV content safely (avoid error)
+    - name: Build CSV content safely
       set_fact:
         csv_report: |
           VM Name,vCPU,RAM(MB),Storage Path,IP Address
-          {% for host in ansible_play_hosts %}
+          {% for host in groups['all'] %}
           {% if hostvars[host].vm_info_lines is defined %}
           {% for line in hostvars[host].vm_info_lines %}
           {{ line }}
@@ -47,10 +48,11 @@
         dest: ./kvm_vm_report.csv
         content: "{{ csv_report }}"
 
-
 - name: Send VM Report via Email
   hosts: localhost
   gather_facts: false
+  become: false
+
   tasks:
     - name: Email CSV file
       community.general.mail:
