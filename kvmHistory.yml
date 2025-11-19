@@ -13,21 +13,20 @@
       when: item != ""
       shell: |
         vm="{{ item }}"
+        # vCPU
         vcpu=$(virsh dominfo "$vm" | awk -F: '/CPU\(s\)/ {gsub(/ /,"",$2); print $2}')
-        ram=$(virsh dominfo "$vm" | awk -F: '/Max memory/ {gsub(/ /,"",$2); print $2/1024}')  # MB
-        disks=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}')
-        disk_info=""
-        for d in $disks; do
-          size=$(qemu-img info $d 2>/dev/null | awk '/virtual size:/ {print $3}' | sed 's/)//')
-          disk_info+="$d($size); "
-        done
-        ip=$(virsh domifaddr "$vm" --source agent 2>/dev/null | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
+        # RAM in MB
+        ram=$(virsh dominfo "$vm" | awk -F: '/Max memory/ {gsub(/ /,"",$2); print int($2/1024)}')
+        # Disks (just path)
+        disks=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}' | tr '\n' ';')
+        # IP from interfaces (without agent)
+        ip=$(virsh domifaddr "$vm" 2>/dev/null | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
         if [ -z "$ip" ]; then ip="N/A"; fi
-        echo "$vm,$vcpu,$ram,$disk_info,$ip"
+        echo "$vm,$vcpu,$ram,$disks,$ip"
       loop: "{{ vm_list.stdout_lines }}"
       register: vm_details
 
-    - name: Build VM info lines (only for valid hosts)
+    - name: Build VM info lines
       set_fact:
         vm_info_lines: "{{ vm_details.results | map(attribute='stdout') | list }}"
 
@@ -35,10 +34,10 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Build CSV content safely (avoid undefined errors)
+    - name: Build CSV content safely
       set_fact:
         csv_report: |
-          VM Name,vCPU,RAM(MB),Disk(Path+Size),IP Address
+          VM Name,vCPU,RAM(MB),Disk(Path),IP Address
           {% for host in ansible_play_hosts %}
           {% if hostvars[host].vm_info_lines is defined %}
           {% for line in hostvars[host].vm_info_lines %}
