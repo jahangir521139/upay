@@ -1,0 +1,44 @@
+---
+- name: Collect KVM VM info and generate CSV
+  hosts: kvm_hosts
+  gather_facts: false
+  vars:
+    csv_report: "Name,State,CPU,Memory(MB),Disk,IP\n"
+  tasks:
+    - name: Get list of VMs
+      command: virsh list --all --name
+      register: vm_list
+
+    - name: Collect VM details
+      vars:
+        vm_name: "{{ item }}"
+      loop: "{{ vm_list.stdout_lines }}"
+      block:
+        - name: Get VM XML
+          command: virsh dumpxml {{ vm_name }}
+          register: vm_xml
+
+        - name: Parse VM info and append to CSV
+          set_fact:
+            csv_report: "{{ csv_report }}{{ vm_name }},{{ (vm_xml.stdout | from_xml).domain.status }},{{ (vm_xml.stdout | from_xml).domain.vcpu.'#text' }},{{ ((vm_xml.stdout | from_xml).domain.memory.'#text' | int) / 1024 }},{{ ((vm_xml.stdout | from_xml).domain.devices.disk[0].target.dev if (vm_xml.stdout | from_xml).domain.devices.disk is defined else 'N/A') }},{{ 'N/A' }}\n"
+
+    - name: Save CSV to file
+      copy:
+        content: "{{ csv_report }}"
+        dest: "/tmp/kvm_vm_report.csv"
+
+- name: Send VM CSV report via email
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Email CSV report
+      community.general.mail:
+        host: 172.23.18.26
+        port: 465
+        username: ansible@upay.systems
+        password: Upay@321
+        to: m.jahangir.alam@ucb.com.bd
+        subject: "KVM VM Info Report"
+        body: "Attached is the full VM information report for all KVM hosts."
+        attach:
+          - "/tmp/kvm_vm_report.csv"
