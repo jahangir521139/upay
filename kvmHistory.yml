@@ -16,7 +16,6 @@
         ram=$(virsh dominfo "$vm" | grep 'Max memory' | awk '{print $3}')
         storage=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}')
         ip=$(virsh domifaddr "$vm" | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
-
         echo "$vm,$vcpu,$ram,$storage,$ip"
       register: vm_details
       loop: "{{ vm_list.stdout_lines }}"
@@ -34,11 +33,11 @@
       set_fact:
         csv_report: |
           VM Name,vCPU,RAM(MB),Storage Path,IP Address
-          {% for line in hostvars[item].vm_info_lines %}
+          {% for host in ansible_play_hosts %}
+          {% for line in hostvars[host].vm_info_lines %}
           {{ line }}
           {% endfor %}
-      vars:
-        item: "{{ groups['kvm_hosts'][0] }}"
+          {% endfor %}
 
     - name: Save CSV file
       copy:
