@@ -2,33 +2,61 @@
 - name: Gather OS info
   hosts: all
   gather_facts: true
-  tasks:    
-    - name: Collect OS info in a fact
+  tasks:
+
+    - name: Get last Windows Update (Windows only)
+      win_shell: |
+         Get-HotFix | Sort-Object -Property InstalledOn -Descending | Select-Object -First 1 | Format-Table -HideTableHeaders InstalledOn, HotFixID
+      register: win_update
+      when: ansible_os_family == 'Windows'
+
+    - name: Get last update date for Linux/macOS (non-Windows)
+      shell: |
+        if [ -f /var/log/dnf.rpm.log ]; then
+            tail -1 /var/log/dnf.rpm.log | awk '{print $1, $2}'
+        elif [ -f /var/log/apt/history.log ]; then
+            zgrep -h "Start-Date" /var/log/apt/history.log* | tail -1 | cut -d':' -f2-
+        elif [ "$(uname)" = "Darwin" ]; then
+            softwareupdate --history | tail -2 | head -1
+        else
+            echo "Unknown"
+        fi
+      register: unix_update
+      when: ansible_os_family != 'Windows'
+
+    - name: Set OS info line (cross-platform)
       set_fact:
-        os_info_report: |
-          Host: {{ inventory_hostname }}
-          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
-          Kernel: {{ ansible_kernel }}
-          Architecture: {{ ansible_architecture }}
-          Hostname: {{ ansible_hostname }}
-          Last Update: {{
-            (linux_update_dpkg.stdout | default('')) +
-            (linux_update_yum.stdout | default('')) +
-            (mac_update.stdout | default('')) +
-            (win_update.stdout | default(''))
+        os_info_line: >-
+          {{ ansible_hostname }},
+          {{ inventory_hostname }},
+          {{ ansible_distribution | default('Unknown') }} {{ ansible_distribution_version | default('') }},
+          {{ ansible_kernel | default('') }},
+          {{ ansible_architecture | default('') }},
+          {{
+            (win_update.stdout | trim) if ansible_os_family == 'Windows'
+            else (unix_update.stdout_lines[0] | trim if unix_update.stdout_lines else 'N/A')
           }}
 
-    - name: Add OS info to central file (delegated to localhost)
-      delegate_to: localhost
-      run_once: true
-      vars:
-        reports: "{{ hostvars | dict2items | map(attribute='value.os_info_report') | join('\n\n') }}"
+- name: Combine CSV on controller
+  hosts: localhost
+  gather_facts: false
+  tasks:
+    - name: Build CSV from all hosts
+      set_fact:
+        csv_report: |
+          Hostname,IP,OS,Kernel,Architecture,Last Update
+          {% for host in groups['all'] %}
+          {{ hostvars[host].os_info_line | trim }}
+          {% endfor %}
+
+    - name: Save CSV to file
       copy:
-        content: "{{ reports }}"
-        dest: "./os_info_report.txt"
+        content: "{{ csv_report }}"
+        dest: "./os_info_report.csv"
 
 - name: Send OS info email
   hosts: localhost
+  gather_facts: false
   tasks:
     - name: Email report
       community.general.mail:
@@ -36,8 +64,8 @@
         port: 465
         username: ansible@upay.systems
         password: Upay@321
-        to: jahangir.alam@upaybd.com, m.jahangir.alam@ucb.com.bd
+        to: m.jahangir.alam@ucb.com.bd
         subject: "OS Info Report"
         body: "Attached is the full OS information report for all servers."
         attach:
-          - "./os_info_report.txt"
+          - "./os_info_report.csv"
