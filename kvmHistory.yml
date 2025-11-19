@@ -32,7 +32,7 @@
     - name: Save CSV to file
       copy:
         content: "{{ csv_report }}"
-        dest: "/tmp/kvm_vm_report.csv"
+        dest: "./kvm_vm_report.csv"
 
 - name: Send VM CSV report via email
   hosts: localhost
@@ -48,4 +48,4 @@
         subject: "KVM VM Info Report"
         body: "Attached is the full VM information report for all KVM hosts."
         attach:
-          - "/tmp/kvm_vm_report.csv"
+          - "./kvm_vm_report.csv"
