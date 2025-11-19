@@ -28,6 +28,7 @@
 - name: Create CSV on controller
   hosts: localhost
   gather_facts: false
+  become: false 
   tasks:
     - name: Build CSV content safely (avoid error)
       set_fact:
