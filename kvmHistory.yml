@@ -10,6 +10,7 @@
       register: vm_list
 
     - name: Collect VM details
+      when: item != ""
       shell: |
         vm="{{ item }}"
         vcpu=$(virsh dominfo "$vm" | grep 'CPU(s)' | awk '{print $2}')
@@ -17,11 +18,10 @@
         storage=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}')
         ip=$(virsh domifaddr "$vm" | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
         echo "$vm,$vcpu,$ram,$storage,$ip"
-      register: vm_details
       loop: "{{ vm_list.stdout_lines }}"
-      when: item != ""
+      register: vm_details
 
-    - name: Build VM info lines
+    - name: Build VM info lines (only for valid hosts)
       set_fact:
         vm_info_lines: "{{ vm_details.results | map(attribute='stdout') | list }}"
 
@@ -29,20 +29,23 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Build CSV content
+    - name: Build CSV content safely (avoid error)
       set_fact:
         csv_report: |
           VM Name,vCPU,RAM(MB),Storage Path,IP Address
           {% for host in ansible_play_hosts %}
+          {% if hostvars[host].vm_info_lines is defined %}
           {% for line in hostvars[host].vm_info_lines %}
           {{ line }}
           {% endfor %}
+          {% endif %}
           {% endfor %}
 
     - name: Save CSV file
       copy:
         dest: ./kvm_vm_report.csv
         content: "{{ csv_report }}"
+
 
 - name: Send VM Report via Email
   hosts: localhost
