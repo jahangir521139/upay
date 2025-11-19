@@ -1,0 +1,43 @@
+---
+- name: Gather OS info
+  hosts: all
+  gather_facts: true
+  tasks:    
+    - name: Collect OS info in a fact
+      set_fact:
+        os_info_report: |
+          Host: {{ inventory_hostname }}
+          OS: {{ ansible_distribution }} {{ ansible_distribution_version }}
+          Kernel: {{ ansible_kernel }}
+          Architecture: {{ ansible_architecture }}
+          Hostname: {{ ansible_hostname }}
+          Last Update: {{
+            (linux_update_dpkg.stdout | default('')) +
+            (linux_update_yum.stdout | default('')) +
+            (mac_update.stdout | default('')) +
+            (win_update.stdout | default(''))
+          }}
+
+    - name: Add OS info to central file (delegated to localhost)
+      delegate_to: localhost
+      run_once: true
+      vars:
+        reports: "{{ hostvars | dict2items | map(attribute='value.os_info_report') | join('\n\n') }}"
+      copy:
+        content: "{{ reports }}"
+        dest: "./os_info_report.txt"
+
+- name: Send OS info email
+  hosts: localhost
+  tasks:
+    - name: Email report
+      community.general.mail:
+        host: 172.23.18.26
+        port: 465
+        username: ansible@upay.systems
+        password: Upay@321
+        to: jahangir.alam@upaybd.com, m.jahangir.alam@ucb.com.bd
+        subject: "OS Info Report"
+        body: "Attached is the full OS information report for all servers."
+        attach:
+          - "./os_info_report.txt"
