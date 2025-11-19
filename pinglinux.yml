@@ -1,0 +1,20 @@
+---
+- name: Check connectivity of all Linux hosts
+  hosts: all
+  gather_facts: no
+  tasks:
+
+    - name: Ping the host
+      ansible.builtin.ping:
+      register: ping_result
+      ignore_errors: yes
+
+    - name: Show host status
+      ansible.builtin.debug:
+        msg: >
+          {{ inventory_hostname }} is
+          {% if ping_result is failed %}
+            UNREACHABLE
+          {% else %}
+            REACHABLE
+          {% endif %}
