@@ -1,10 +1,20 @@
 ---
 - name: Collect KVM VM information
   hosts: all
-  become: true
   gather_facts: false
+  become: true
 
   tasks:
+    - name: Ensure virsh is available
+      command: which virsh
+      register: virsh_check
+      ignore_errors: yes
+
+    - name: Fail if virsh not found
+      fail:
+        msg: "virsh command not found on {{ inventory_hostname }}"
+      when: virsh_check.rc != 0
+
     - name: Get list of all VMs
       shell: virsh list --all --name
       register: vm_list
@@ -13,13 +23,9 @@
       when: item != ""
       shell: |
         vm="{{ item }}"
-        # vCPU
         vcpu=$(virsh dominfo "$vm" | awk -F: '/CPU\(s\)/ {gsub(/ /,"",$2); print $2}')
-        # RAM in MB
         ram=$(virsh dominfo "$vm" | awk -F: '/Max memory/ {gsub(/ /,"",$2); print int($2/1024)}')
-        # Disks (just path)
         disks=$(virsh domblklist "$vm" --details | awk '/disk/ {print $4}' | tr '\n' ';')
-        # IP from interfaces (without agent)
         ip=$(virsh domifaddr "$vm" 2>/dev/null | awk '/ipv4/ {print $4}' | cut -d'/' -f1)
         if [ -z "$ip" ]; then ip="N/A"; fi
         echo "$vm,$vcpu,$ram,$disks,$ip"
@@ -34,11 +40,11 @@
   hosts: localhost
   gather_facts: false
   tasks:
-    - name: Build CSV content safely
+    - name: Build CSV content
       set_fact:
         csv_report: |
           VM Name,vCPU,RAM(MB),Disk(Path),IP Address
-          {% for host in ansible_play_hosts %}
+          {% for host in groups['all'] %}
           {% if hostvars[host].vm_info_lines is defined %}
           {% for line in hostvars[host].vm_info_lines %}
           {{ line }}
