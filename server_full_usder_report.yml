@@ -21,7 +21,7 @@
       register: user_list
 
     - name: Check Safe Sudoers User List
-      shell: "grep -Po '^[^#]*\sALL=\(ALL' /etc/sudoers || echo "No Sudo Users Found""
+      shell: grep -Po '^[^#]*\sALL=\(ALL' /etc/sudoers || echo "No Sudo Users Found"
       register: sudoers_file_users
 
     - name: Prepare Info for CSV
