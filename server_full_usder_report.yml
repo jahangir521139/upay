@@ -17,20 +17,16 @@
       register: kernel_ver
 
     - name: Get User List
-      shell: cat /etc/passwd | awk -F':' '{print $1}' | tr '\n' ';'
+      shell: cat /etc/passwd | cut -d: -f1
       register: user_list
 
     - name: Get Sudo Users from /etc/sudoers
-      shell: grep -Po '^[^#]*\sALL=\(ALL' /etc/sudoers || echo "No Sudo Users Found"
+      shell: grep -E '^%?sudo|^%?admin|ALL=' /etc/sudoers
       register: sudoers_file_users
-
-    - name: Get Sudo Group Users (wheel / sudo)
-      shell: grep "^sudo\|^wheel" /etc/group || echo "No Sudo Group Users"
-      register: sudo_group_users
 
     - name: Prepare Info for CSV
       set_fact:
-        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | default('N/A') }},{{ sudoers_file_users.stdout | default('N/A') }},{{ sudo_group_users.stdout | default('N/A') }}"
+        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | default('N/A') }},{{ sudoers_file_users.stdout | default('N/A') }}"
 
 
 ##########################################################
@@ -44,7 +40,7 @@
     - name: Build CSV format
       set_fact:
         csv_report: |
-          Hostname,IP,OS Version,Kernel Version,Users,Sudoers File,Sudo Group
+          Hostname,IP,OS Version,Kernel Version,Users,Sudoers File
           {% for host in groups['all'] %}
           {{ hostvars[host].info_line | trim }}
           {% endfor %}
