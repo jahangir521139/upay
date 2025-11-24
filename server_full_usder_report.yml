@@ -9,7 +9,7 @@
 
   tasks:
     - name: Get OS Version
-      shell: cat /etc/os-release | grep PRETTY_NAME
+      shell: grep PRETTY_NAME /etc/os-release
       register: os_ver
 
     - name: Get Kernel Version
@@ -17,16 +17,16 @@
       register: kernel_ver
 
     - name: Get User List
-      shell: cat /etc/passwd | cut -d: -f1
+      shell: cut -d: -f1 /etc/passwd
       register: user_list
 
-    - name: Get Sudo Users from /etc/sudoers
-      shell: grep -E '^%?sudo|^%?admin|ALL=' /etc/sudoers
+    - name: Check Safe Sudoers User List
+      shell: grep -E '^%?sudo|^%?admin|ALL=' /etc/sudoers 2>/dev/null || true
       register: sudoers_file_users
 
     - name: Prepare Info for CSV
       set_fact:
-        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | default('N/A') }},{{ sudoers_file_users.stdout | default('N/A') }}"
+        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | replace('\n',' ') | default('N/A') }},{{ sudoers_file_users.stdout | replace('\n',' ') | default('N/A') }}"
 
 
 ##########################################################
@@ -63,7 +63,7 @@
     smtp_port: 465
     sender_email: "ansible@upay.systems"
     sender_pass: "Upay@321"
-    send_to: m.jahangir.alam@ucb.com.bd
+    send_to: "m.jahangir.alam@ucb.com.bd"
 
   tasks:
     - name: Email server report
