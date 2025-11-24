@@ -67,7 +67,7 @@
     smtp_port: 465
     sender_email: "ansible@upay.systems"
     sender_pass: "Upay@321"
-    send_to: "m.jahangir.alam@ucb.com.bd, shahriar.khan@ucb.com.bd"
+    send_to: m.jahangir.alam@ucb.com.bd
 
   tasks:
     - name: Email server report
