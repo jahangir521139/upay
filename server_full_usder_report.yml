@@ -1,0 +1,94 @@
+---
+##########################################################
+# PART-1: COLLECT INFO FROM ALL SERVERS
+##########################################################
+- name: Collect server full information
+  hosts: all
+  become: yes
+  gather_facts: yes
+
+  tasks:
+    - name: Get OS Version
+      shell: cat /etc/os-release | grep PRETTY_NAME
+      register: os_ver
+
+    - name: Get Kernel Version
+      shell: uname -r
+      register: kernel_ver
+
+    - name: Get User List
+      shell: cat /etc/passwd | awk -F':' '{print $1}' | tr '\n' ';'
+      register: user_list
+
+    - name: Get Sudo Users from /etc/sudoers
+      shell: grep -Po '^[^#]*\sALL=\(ALL' /etc/sudoers || echo "No Sudo Users Found"
+      register: sudoers_file_users
+
+    - name: Get Sudo Group Users (wheel / sudo)
+      shell: grep "^sudo\|^wheel" /etc/group || echo "No Sudo Group Users"
+      register: sudo_group_users
+
+    - name: Prepare Info for CSV
+      set_fact:
+        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | default('N/A') }},{{ sudoers_file_users.stdout | default('N/A') }},{{ sudo_group_users.stdout | default('N/A') }}"
+
+
+##########################################################
+# PART-2: CREATE CSV REPORT ON CONTROLLER
+##########################################################
+- name: Generate CSV from collected data
+  hosts: localhost
+  gather_facts: false
+
+  tasks:
+    - name: Build CSV format
+      set_fact:
+        csv_report: |
+          Hostname,IP,OS Version,Kernel Version,Users,Sudoers File,Sudo Group
+          {% for host in groups['all'] %}
+          {{ hostvars[host].info_line | trim }}
+          {% endfor %}
+
+    - name: Save CSV file locally
+      copy:
+        content: "{{ csv_report }}"
+        dest: "./server_report.csv"
+
+
+##########################################################
+# PART-3: SEND EMAIL WITH CSV REPORT
+##########################################################
+- name: Send Report via Email
+  hosts: localhost
+  gather_facts: false
+
+  vars:
+    smtp_server: "172.23.18.26"
+    smtp_port: 465
+    sender_email: "ansible@upay.systems"
+    sender_pass: "Upay@321"
+    send_to: "m.jahangir.alam@ucb.com.bd, shahriar.khan@ucb.com.bd"
+
+  tasks:
+    - name: Email server report
+      community.general.mail:
+        host: "{{ smtp_server }}"
+        port: "{{ smtp_port }}"
+        username: "{{ sender_email }}"
+        password: "{{ sender_pass }}"
+        to: "{{ send_to }}"
+        subject: "Server Full Information Report"
+        body: |
+          Dear Team,
+          
+          Please find the attached server report which includes:
+          - OS Version
+          - Kernel Version
+          - User List
+          - Sudo Permission Users
+
+          Regards,
+          IT Operations Team
+        attach:
+          - "./server_report.csv"
+        secure: starttls
