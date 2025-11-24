@@ -26,8 +26,7 @@
 
     - name: Prepare Info for CSV
       set_fact:
-        info_line: "{{ inventory_hostname }},{{ ansible_host | default('N/A') }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | replace('\n',' ') | default('N/A') }},{{ sudoers_file_users.stdout | replace('\n',' ') | default('N/A') }}"
-
+        info_line: "{{ ansible_hostname }},{{ ansible_default_ipv4.address | default(ansible_host) }},{{ os_ver.stdout | default('N/A') }},{{ kernel_ver.stdout | default('N/A') }},{{ user_list.stdout | default('N/A') }},{{ sudoers_file_users.stdout | default('N/A') }}"
 
 ##########################################################
 # PART-2: CREATE CSV REPORT ON CONTROLLER
