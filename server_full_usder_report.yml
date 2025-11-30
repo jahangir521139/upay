@@ -58,7 +58,7 @@
   gather_facts: false
 
   vars:
-    smtp_server: "172.23.18.26"
+    smtp_server: "103.159.0.237"
     smtp_port: 465
     sender_email: "ansible@upay.systems"
     sender_pass: "Upay@321"
