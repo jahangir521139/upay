@@ -64,10 +64,9 @@
   gather_facts: false
 
   vars:
-    smtp_server: "172.23.18.26"
-    smtp_port: 465
-    sender_email: "ansible@upay.systems"
-    sender_pass: "Upay@321"
+    smtp_server: "172.25.10.51"
+    smtp_port: 25
+    sender_email: "m.jahangir.alam@ucb.com.bd"
     send_to: "m.jahangir.alam@ucb.com.bd"
 
   tasks:
@@ -75,8 +74,8 @@
       community.general.mail:
         host: "{{ smtp_server }}"
         port: "{{ smtp_port }}"
-        username: "{{ sender_email }}"
-        password: "{{ sender_pass }}"
+        secure: never
+        from: "{{ sender_email }}"
         to: "{{ send_to }}"
         subject: "Server Full Information Report"
         body: |
@@ -92,4 +91,3 @@
           IT Operations Team
         attach:
           - "./server_report.csv"
-        secure: starttls
