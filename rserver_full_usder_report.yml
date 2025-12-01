@@ -6,7 +6,8 @@
   hosts: all
   become: yes
   gather_facts: yes
-
+  vars_files:
+    - vault.yml
   tasks:
     - name: Get OS Version
       shell: grep PRETTY_NAME /etc/os-release
